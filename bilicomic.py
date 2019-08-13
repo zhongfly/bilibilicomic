@@ -1,5 +1,6 @@
 # encoding:UTF-8
 # python3.6
+# support by BiliApi(https://api.kaaass.net/biliapi/)
 
 import tempfile
 import io
@@ -12,7 +13,7 @@ import queue
 import time
 import toml
 
-conf='config.toml'
+conf = 'config.toml'
 workDir = os.getcwd()
 
 # access_key = "59f81208b0b95a55c2f99e4e7eddc461"
@@ -23,12 +24,45 @@ workDir = os.getcwd()
 
 with open(conf, encoding="utf-8") as f:
     dict_conf = toml.load(f)
+user = dict_conf['user']['user']
+passwd = dict_conf['user']['passwd']
 access_key = dict_conf['user']['access_key']
 appkey = dict_conf['user']['appkey']
 comicId = dict_conf['comic']['comicId']
 beginId = int(dict_conf['comic']['beginId'])
 endId = int(dict_conf['comic']['endId'])
 
+if access_key != "":
+    payload = {'access_key': access_key}
+    r = requests.get(
+        'https://api.kaaass.net/biliapi/user/info', params=payload)
+    if r.status_code == 200:
+        isLogin = True
+        requests.get(
+            'https://api.kaaass.net/biliapi/user/refreshToken', params=payload)
+    else:
+        isLogin = False
+else:
+    isLogin = False
+
+
+if not isLogin:
+    if user == "" or passwd == "":
+        print("access_key已失效，且缺少用户信息（user，passwd）,无法登录获取acess_key")
+        input('按任意键退出')
+        exit()
+    data = {'user': user, 'passwd': passwd}
+    r = requests.post('https://api.kaaass.net/biliapi/user/login', data=data)
+    if r.status_code == 200:
+        result = r.json()
+        access_key = result['access_key']
+        dict_conf['user']['access_key'] = access_key
+        with open(conf, "w", encoding="utf-8") as f:
+            toml.dump(dict_conf, f)
+    else:
+        print("access_key已失效，且用户信息（user，passwd）错误，无法登录获取acess_key")
+        input('按任意键退出')
+        exit()
 
 headers = {
     'Content-Type': "application/x-www-form-urlencoded; charset=UTF-8",
@@ -51,12 +85,12 @@ def makeDir(dirPath):
 def getComicDetail(comicId):
     url = "https://manga.bilibili.com/twirp/comic.v2.Comic/ComicDetail"
     data = {
-      'access_key': access_key,
-      'appkey': appkey,
-      'comic_id': comicId,
-      'device': 'android',
+        'access_key': access_key,
+        'appkey': appkey,
+        'comic_id': comicId,
+        'device': 'android',
     }
-    r = requests.post(url, data=payload, headers=headers)
+    r = requests.post(url, data=data, headers=headers)
     if r.status_code == requests.codes.ok:
         try:
             data = r.json()

@@ -1,5 +1,7 @@
 [user]
-access_key = "59f81208b0b95a55c2f99e4e7eddc461"
+user = ""
+passwd = ""
+access_key = ""
 appkey = "cc8617fd6961e070"
 
 [comic]

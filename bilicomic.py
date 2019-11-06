@@ -71,7 +71,7 @@ headers = {
 }
 getHeaders = {
     'User-Agent': 'okhttp/3.10.0',
-    'Host': 'i0.hdslb.com'
+    'Host': 'manga.hdslb.com'
 }
 
 
@@ -110,7 +110,7 @@ def getEpList(ep_list, filter=True, beginId=0, endId=9999999):
             continue
         epDict = {"episodeId": ep['id'], "name": ep['short_title']}
         if filter:
-            if ep["is_locked"] == False:
+            if ep["is_locked"] == False or ep["is_in_free"]:
                 EpList.append(epDict)
             else:
                 pass
@@ -141,10 +141,10 @@ def getEpIndex(comicId, episodeId):
             indexData[idx] ^= hashKey[idx % 8]
         return bytes(indexData)
 
-    url = "https://manga.bilibili.com/twirp/comic.v1.Comic/Index"
+    url = "https://manga.bilibili.com/twirp/comic.v1.Comic/GetImageIndex"
     payload = f"access_key={access_key}&appkey={appkey}&device=android&ep_id={episodeId}&mobi_app=android_comic&platform=android"
     r = requests.post(url, headers=headers, data=payload)
-    data = "https://i0.hdslb.com"+r.json()["data"].replace(r"\u003d", r"=")
+    data = r.json()["data"]["host"]+r.json()["data"]["path"].replace(r"\u003d", r"=")
 
     r = requests.get(data, headers=getHeaders)
     indexData = r.content
@@ -176,11 +176,13 @@ def getImageToken(imageUrls):
 
 def download(url, token, imgPath):
     url = url+f"?token={token}"
-    r = requests.get(url, headers=getHeaders, stream=True)
+    r = requests.get(url, stream=True)
     if r.status_code == 200:
         with open(imgPath, 'wb') as f:
             for chunk in r:
                 f.write(chunk)
+    else:
+        print(f"图片{url}下载失败!")
 
 
 def DownloadThread(q):
@@ -221,7 +223,7 @@ def main():
         makeDir(epDir)
 
         indexData = getEpIndex(comicId, episodeId)
-        imageUrls = ["https://i0.hdslb.com{}".format(url)
+        imageUrls = ["https://manga.hdslb.com{}".format(url)
                      for url in indexData["pics"]]
         data = getImageToken(imageUrls)
         print(f"已获取章节{ep['name']}的图片链接，章节id：{episodeId}")

@@ -101,6 +101,15 @@ def getComicDetail(comicId):
         print(f"getComicDetail fail,id={comicId},{r.status_code}")
     return 0
 
+def printList(ep_list,path):
+    file=os.path.join(path,"漫画详情.txt")
+    text=""
+    for ep in ep_list:
+        text=text+"章节id：{},章节名：{} {}\n".format(ep['id'],ep['short_title'],ep["title"])    
+    with open(file,"w+", encoding="utf-8") as f:
+        f.write(text)
+
+
 
 def getEpList(ep_list, filter=True, beginId=0, endId=9999999):
     EpList = []
@@ -199,18 +208,20 @@ def DownloadThread(q):
             break
         except Exception as e:
             print(e)
+            print("{}?token={}".format(task["url"],task["token"]))
             break
         q.task_done()
 
 
 def main():
     detail = getComicDetail(comicId)
-    comicName = detail["title"]
-    comicDir = os.path.join(workDir, comicName)
+    comicName = detail["title"].replace(r"\t","").rstrip()
+    comicDir = os.path.join(workDir, comicId)
     makeDir(comicDir)
-    print(f"已获取漫画《{comicName}》详情，并建立文件夹")
+    print(f"已获取漫画《{comicName}》详情，并建立文件夹/{comicId}")
 
     ep_list = detail["ep_list"]
+    printList(ep_list,comicDir)
     if detail["discount_type"] == 2:
         EpList = getEpList(ep_list, filter=False, beginId=beginId, endId=endId)
     else:
@@ -227,6 +238,7 @@ def main():
                      for url in indexData["pics"]]
         data = getImageToken(imageUrls)
         print(f"已获取章节{ep['name']}的图片链接，章节id：{episodeId}")
+        
 
         n = 1
         q = queue.Queue()
@@ -236,7 +248,7 @@ def main():
             task["imgPath"] = imgPath
             q.put(task)
         threads = []
-        for i in range(20):
+        for i in range(10):
             # 第一个参数是线程函数变量，第二个参数args是一个数组变量参数，
             # 如果只传递一个值，就只需要q, 如果需要传递多个参数，那么还可以继续传递下去其他的参数，
             # 其中的逗号不能少，少了就不是数组了，就会出错。
@@ -246,6 +258,7 @@ def main():
         for thread in threads:
             thread.join()
         print(f"已下载章节{ep['name']}，章节id：{episodeId}")
+
 
     print(f"漫画《{comicName}》下载完毕！\n"+"#"*10)
     input('按任意键退出')

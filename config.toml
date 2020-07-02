@@ -1,10 +1,11 @@
 [user]
-user = ""
-passwd = ""
-access_key = ""
-appkey = "cc8617fd6961e070"
+access_key = "xxxxxxx"
+cookies = "sid=xxxxx;DedeUserID=xxxxx; DedeUserID__ckMd5=xxxx; SESSDATA=xxx; bili_jct=xxxx"
 
 [comic]
-comicId = "26399"
-beginId = "0"
-endId = "99999999999"
+comicId = "xxxx"
+ep_str = "1-10"
+
+[setting]
+download_timeout = 60
+max_threads = 10

@@ -7,5 +7,6 @@ comicId = "xxxx"
 ep_str = "1-10"
 
 [setting]
-download_timeout = 60
 max_threads = 10
+epName_rule = "[@ord] @short_title @title"
+epName_filter = "False"

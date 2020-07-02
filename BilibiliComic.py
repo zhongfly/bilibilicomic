@@ -18,6 +18,8 @@ from io import BytesIO
 
 download_timeout = 60
 max_threads = 10
+epName_rule = "[@ord] @short_title @title"
+epName_filter = True
 
 
 class Bili:
@@ -117,17 +119,11 @@ class Bili:
         }
         r = self._session(
             'get', 'https://passport.bilibili.com/api/login/sso', level=0, params=params)
-        return self.s.cookies.get_dict()
+        return requests.utils.dict_from_cookiejar(self.s.cookies)
 
     def renewToken(self):
-        params = {
-            'access_key': self.access_key,
-            'appkey': Bili.appkey,
-            'ts': str(int(time.time())),
-        }
-        params['sign'] = self.calc_sign(params)
         r = self._session(
-            'get', 'https://account.bilibili.com/api/login/renewToken', params=params)
+            'get', 'https://account.bilibili.com/api/login/renewToken')
         if r['code'] == 0:
             str_time = time.strftime(
                 "%Y-%m-%d %H:%M:%S", time.localtime(r['expires']))
@@ -178,9 +174,10 @@ class Bili:
 
 
 class DownloadThread(threading.Thread):
-    def __init__(self, queue):
+    def __init__(self, queue, overwrite=True):
         threading.Thread.__init__(self)
         self.queue = queue
+        self.overwrite = overwrite
 
     def run(self):
         while True:
@@ -188,14 +185,17 @@ class DownloadThread(threading.Thread):
                 break
             url, path = self.queue.get_nowait()
             try:
-                self.download(url, path)
+                if not self.overwrite and os.path.exists(path):
+                    print(f"图片{os.path.basename(path)}已存在，跳过")
+                else:
+                    self.download(url, path)
             except Exception as e:
                 print(f"{url} download fail:{e}")
             self.queue.task_done()
             time.sleep(1)
 
     @func_set_timeout(download_timeout)
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(2), reraise=True)
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(5))
     def download(self, url, path):
         r = requests.get(url, stream=True)
         r.raise_for_status()
@@ -281,8 +281,7 @@ class BiliManga:
             if filter:
                 if ep["is_locked"] and not ep["is_in_free"]:
                     continue
-            text = text+"ord:{} 章节id：{},章节名：{} {}\n".format(
-                ep['ord'], ep['id'], ep['short_title'], ep["title"])
+            text = text+f"ord:{ep['ord']:<3} 章节id：{ep['id']},章节名：{ep['short_title']} {ep['title']}\n"
         with open(file, "w+", encoding="utf-8") as f:
             f.write(text)
 
@@ -313,18 +312,21 @@ class BiliManga:
             pic_list.append(f"{i['url']}?token={i['token']}")
         return pic_list
 
-    def downloadEp(self, ep_id, path):
+    def downloadEp(self, ep_data, path, overwrite=True):
+        epName = custom_name(ep_data, epName_filter, epName_rule)
+        epDir = os.path.join(path, epName)
+        ep_id = ep_data['id']
         pic_list = [
             "https://manga.hdslb.com{}".format(url) for url in self.getImages(ep_id)]
         filetype = pic_list[0].split(".")[-1]
         imageUrls = self.getImageToken(pic_list)
         q = queue.Queue()
         for n, url in enumerate(imageUrls, 1):
-            imgPath = os.path.join(path, f"{n}.{filetype}")
+            imgPath = os.path.join(epDir, f"{n}.{filetype}")
             q.put((url, imgPath))
         num = min(len(imageUrls), max_threads)
         for i in range(num):
-            t = DownloadThread(q)
+            t = DownloadThread(q, overwrite)
             t.setDaemon(True)
             t.start()
         q.join()
@@ -370,8 +372,9 @@ class BiliManga:
 def makeDir(dirPath):
     if os.path.isdir(dirPath) == False:
         os.makedirs(dirPath)
+        return True
     else:
-        pass
+        return False
 
 
 def safe_filename(filename, replace=' '):
@@ -387,28 +390,89 @@ def safe_filename(filename, replace=' '):
     raise Exception('文件名不合法. new_filename={}'.format(new_filename))
 
 
+def custom_name(ep_data, filter=True, name=epName_rule):
+    trans_dict = {
+        "@ord": str(ep_data["ord"]),
+        "@id": str(ep_data["id"]),
+        "@short_title": ep_data["short_title"],
+        "@title": ep_data["title"],
+        "@pub_time": ep_data["pub_time"],
+    }
+    if filter:
+        appeared = set()
+        for k, v in trans_dict.items():
+            if v in appeared:
+                trans_dict[k] = ""
+            else:
+                appeared.add(v)
+    for k, v in trans_dict.items():
+        name = name.replace(k, v)
+    return safe_filename(name)
+
+
 def load_config(conf='config.toml'):
     with open(conf, encoding="utf-8") as f:
         dict_conf = toml.load(f)
+    is_ok = True
+    if "user" not in dict_conf:
+        is_ok = False
+    elif 'access_key' not in dict_conf['user']:
+        is_ok = False
+    elif 'cookies' not in dict_conf['user']:
+        is_ok = False
+
+    if 'comic' not in dict_conf:
+        is_ok = False
+    elif 'comicId' not in dict_conf['comic']:
+        is_ok = False
+    elif 'ep_str' not in dict_conf['comic']:
+        is_ok = False
+    if not is_ok:
+        print("配置文件缺少内容")
+        exit()
     if 'setting' in dict_conf:
+        global max_threads, epName_rule, epName_filter
         setting = dict_conf['setting']
-        download_timeout = setting['download_timeout']
         max_threads = setting['max_threads']
+        epName_rule = setting['epName_rule']
+        epName_filter = True if setting['epName_filter'] == "True" else False
     return dict_conf
+
+
+def cookies2conf(cookies: dict, conf='config.toml'):
+    cookiesStr = ""
+    for k, v in cookies.items():
+        cookiesStr = cookiesStr+f"{k}={v};"
+    with open(conf, 'r', encoding="utf-8") as f:
+        dict_conf = toml.load(f)
+    dict_conf['user']['cookies'] = cookiesStr
+    with open(conf, 'w', encoding="utf-8") as f:
+        toml.dump(dict_conf, f)
 
 
 def main():
     workDir = os.getcwd()
-    dict_conf = load_config()
-    dict_user = dict_conf['user']
-    if dict_conf['comic']['comicId'] == "":
+    global config
+    config = os.path.join(workDir, 'config.toml')
+    if os.path.exists(config):
+        dict_conf = load_config(config)
+        dict_user = dict_conf['user']
+        dict_comic = dict_conf['comic']
+    else:
+        print("未找到配置文件")
+        exit()
+
+    if dict_comic['comicId'] == "":
         comicId = int(input("输入mc号（纯数字）："))
     else:
-        comicId = int(dict_conf['comic']['comicId'])
+        comicId = int(dict_comic['comicId'])
+
     s = requests.session()
     bili = Bili(s, dict_user)
+
     if dict_user['access_key'] != "" and bili.isLogin('app'):
         print("成功使用app端登录")
+        bili.renewToken()
         manga = BiliManga(s, comicId, 'app', dict_user['access_key'])
     elif dict_user['cookies'] != "" and bili.isLogin('pc'):
         print("成功使用pc端登录")
@@ -418,15 +482,20 @@ def main():
             ok = True if input("目前未登录，输入任意内容时继续下载，按回车退出:") else False
             if not ok:
                 exit()
+        else:
+            cookies = requests.utils.dict_from_cookiejar(s.cookies)
+            cookies2conf(cookies, config)
         manga = BiliManga(s, comicId)
+
     manga.getComicDetail()
     comicName = safe_filename(manga.detail['title'])
     mangaDir = os.path.join(workDir, comicName)
     makeDir(mangaDir)
     manga.printList(mangaDir)
     print(f"已获取漫画《{comicName}》详情，并建立文件夹。")
-    if dict_conf['comic']['ep_str'] != "":
-        ep_str = dict_conf['comic']['ep_str']
+
+    if dict_comic['ep_str'] != "":
+        ep_str = dict_comic['ep_str']
     else:
         print("#"*10+"\n如何输入下载范围：\n输入1-4表示下载ord（序号）1至4的章节\n输入3,5表示下载ord（序号）3、5的章节\n同理，可混合输入1-5,9,55-60")
         print(f"漫画章节详情见“{comicName}/漫画详情.txt”文件（只列出了目前可下载的章节）")
@@ -434,12 +503,11 @@ def main():
         ep_str = input("请输入下载范围：")
     download_list = manga.parser_ep_str(ep_str)
     print("已获取章节列表")
+
     for ep in download_list:
-        epName = safe_filename(f"[{ep['ord']}] {ep['short_title']} {ep['title']}")
-        epDir = os.path.join(mangaDir, epName)
-        makeDir(epDir)
-        manga.downloadEp(ep['id'], epDir)
+        manga.downloadEp(ep, mangaDir)
         print(f"已下载章节{epName}，章节id：{ep['id']},ord:{ep['ord']}")
+
     print(f"漫画《{comicName}》下载完毕！\n"+"#"*10)
     input('按任意键退出')
 

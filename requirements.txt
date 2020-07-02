@@ -1,0 +1,5 @@
+requests
+qrcode
+func_timeout
+tenacity
+toml

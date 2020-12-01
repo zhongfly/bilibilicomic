@@ -285,24 +285,33 @@ class BiliManga:
         with open(file, "w+", encoding="utf-8") as f:
             f.write(text)
 
+    def getindex(self, content, ep_id, comicId=None):
+        content = content[9:]
+        if comicId == None:
+            comicId = self.comicId
+        key = [ep_id & 0xff, ep_id >> 8 & 0xff, ep_id >> 16 & 0xff, ep_id >> 24 & 0xff,
+               comicId & 0xff, comicId >> 8 & 0xff, comicId >> 16 & 0xff, comicId >> 24 & 0xff]
+        for i in range(len(content)):
+            content[i] ^= key[i % 8]
+        file = BytesIO(content)
+        zf = zipfile.ZipFile(file)
+        data = json.loads(zf.read('index.dat'))
+        zf.close()
+        file.close()
+        return data
+
     def getImages(self, ep_id):
         ep_id = int(ep_id)
         c = self.comicId
         data = self._session('post', self.URL_IMAGE_INDEX,
                              data={'ep_id': ep_id})
-        url = data['host'] + data['path'].replace(r"\u003d", "=")
-        data = bytearray(self._session('get', url, level=0,
-                                       headers=self.okhttp_headers)[9:])
-        key = [ep_id & 0xff, ep_id >> 8 & 0xff, ep_id >> 16 & 0xff, ep_id >> 24 & 0xff,
-               c & 0xff, c >> 8 & 0xff, c >> 16 & 0xff, c >> 24 & 0xff]
-        for i in range(len(data)):
-            data[i] ^= key[i % 8]
-        file = BytesIO(data)
-        zf = zipfile.ZipFile(file)
-        data = json.loads(zf.read('index.dat'))
-        zf.close()
-        file.close()
-        return data['pics']
+        pics = ["{}".format(image["path"]) for image in data["images"]]
+        # url = data['host'] + data['path'].replace(r"\u003d", "=")
+        # content = bytearray(self._session('get', url, level=0,
+        #                                headers=self.okhttp_headers))
+        # data = self.getindex(content, ep_id)
+        # return data["pics"]
+        return pics
 
     def getImageToken(self, imageUrls):
         data = self._session('post', self.URL_IMAGE_TOKEN, data={
@@ -315,6 +324,7 @@ class BiliManga:
     def downloadEp(self, ep_data, path, overwrite=True):
         epName = custom_name(ep_data, epName_filter, epName_rule)
         epDir = os.path.join(path, epName)
+        os.makedirs(epDir,exist_ok=True)
         ep_id = ep_data['id']
         pic_list = [
             "https://manga.hdslb.com{}".format(url) for url in self.getImages(ep_id)]
@@ -367,14 +377,6 @@ class BiliManga:
                 continue
             chapter_list.append(ep)
         return chapter_list
-
-
-def makeDir(dirPath):
-    if os.path.isdir(dirPath) == False:
-        os.makedirs(dirPath)
-        return True
-    else:
-        return False
 
 
 def safe_filename(filename, replace=' '):
@@ -490,7 +492,7 @@ def main():
     manga.getComicDetail()
     comicName = safe_filename(manga.detail['title'])
     mangaDir = os.path.join(workDir, comicName)
-    makeDir(mangaDir)
+    os.makedirs(mangaDir,exist_ok=True)
     manga.printList(mangaDir)
     print(f"已获取漫画《{comicName}》详情，并建立文件夹。")
 
@@ -506,7 +508,7 @@ def main():
 
     for ep in download_list:
         manga.downloadEp(ep, mangaDir)
-        print(f"已下载章节{epName}，章节id：{ep['id']},ord:{ep['ord']}")
+        print(f"已下载章节{ep['title']}，章节id：{ep['id']},ord:{ep['ord']}")
 
     print(f"漫画《{comicName}》下载完毕！\n"+"#"*10)
     input('按任意键退出')

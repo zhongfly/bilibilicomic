@@ -25,26 +25,26 @@ epName_filter = True
 
 class Bili:
     pc_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'zh-CN,zh;q=0.9',
-        'accept-encoding': 'gzip, deflate',
+        "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "accept-encoding": "gzip, deflate",
     }
     app_headers = {
-        'User-Agent': "Mozilla/5.0 BiliDroid/5.58.0 (bbcallen@gmail.com)",
-        'Accept-encoding': "gzip",
-        'Buvid': "XZ11bfe2654a9a42d885520a680b3574582eb3",
-        'Display-ID': "146771405-1521008435",
-        'Device-Guid': "2d0bbec5-df49-43c5-8a27-ceba3f74ffd7",
-        'Device-Id': "469a6aaf431b46f8b58a1d4a91d0d95b202004211125026456adffe85ddcb44818",
-        'Accept-Language': "zh-CN",
-        'Accept': "text/html,application/xhtml+xml,*/*;q=0.8",
-        'Connection': "keep-alive",
+        "User-Agent": "Mozilla/5.0 BiliDroid/5.58.0 (bbcallen@gmail.com)",
+        # "Accept-encoding": "gzip",
+        # "Buvid": "XZ11bfe2654a9a42d885520a680b3574582eb3",
+        # "Display-ID": "146771405-1521008435",
+        # "Device-Guid": "2d0bbec5-df49-43c5-8a27-ceba3f74ffd7",
+        # "Device-Id": "469a6aaf431b46f8b58a1d4a91d0d95b202004211125026456adffe85ddcb44818",
+        # "Accept-Language": "zh-CN",
+        # "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+        # "Connection": "keep-alive",
     }
     app_params = {
-        'appkey': '4409e2ce8ffd12b8',
+        "appkey": "4409e2ce8ffd12b8",
     }
-    app_secret = '59b43e04ad6965f34319062b478f83dd'
+    app_secret = "59b43e04ad6965f34319062b478f83dd"
     cookies = {}
     login_platform = set()
 
@@ -57,17 +57,17 @@ class Bili:
             params = {"access_key": dict_user["access_key"]}
             params.update(self.app_params)
             self.app_params = params.copy()
-        if 'cookies' in dict_user:
-            cookiesStr = dict_user['cookies']
+        if "cookies" in dict_user:
+            cookiesStr = dict_user["cookies"]
             if cookiesStr != "":
                 cookies = {}
-                for line in cookiesStr.split(';'):
-                    key, value = line.strip().split('=', 1)
+                for line in cookiesStr.split(";"):
+                    key, value = line.strip().split("=", 1)
                     cookies[key] = value
                 self.cookies = cookies
 
-    def _session(self, method, url, platform='pc', level=1, **kwargs):
-        if platform == 'app':
+    def _session(self, method, url, platform="pc", level=1, **kwargs):
+        if platform == "app":
             # api接口要求在params中access_key排第一,sign排最末。
             # py3.6及之后dict中item顺序为插入顺序
             if "params" in kwargs:
@@ -75,106 +75,155 @@ class Bili:
                 params.update(kwargs["params"])
                 kwargs["params"] = params
             else:
-                kwargs['params'] = self.app_params
-            kwargs['params']['ts'] = str(int(time.time()))
-            kwargs['params']['sign'] = self.calc_sign(kwargs['params'])
-        if not 'headers' in kwargs:
-            kwargs['headers'] = Bili.pc_headers if platform == 'pc' else Bili.app_headers
+                kwargs["params"] = self.app_params
+            kwargs["params"]["ts"] = str(int(time.time()))
+            kwargs["params"]["sign"] = self.calc_sign(kwargs["params"])
+        if not "headers" in kwargs:
+            kwargs["headers"] = Bili.pc_headers if platform == "pc" else None
         r = self.s.request(method, url, **kwargs)
-        return r.json()['data'] if level == 2 else r.json() if level == 1 else r
+        return r.json()["data"] if level == 2 else r.json() if level == 1 else r
 
     def calc_sign(self, params: dict):
         params_list = list(params.items())
         params_list.sort()
         params_str = urlencode(params_list)
         sign_hash = hashlib.md5()
-        sign_hash.update(f"{params_str}{Bili.app_secret}".encode('utf-8'))
+        sign_hash.update(f"{params_str}{Bili.app_secret}".encode("utf-8"))
         return sign_hash.hexdigest()
 
-    def isLogin(self, platform='pc'):
-        if platform == 'pc':
+    def isLogin(self, platform="pc"):
+        if platform == "pc":
             if self.cookies:
                 r = self._session(
-                    'get', 'https://api.bilibili.com/nav', cookies=self.cookies)
-                if r['code'] == 0:
+                    "get", "https://api.bilibili.com/nav", cookies=self.cookies
+                )
+                if r["code"] == 0:
                     self.s.cookies = requests.utils.cookiejar_from_dict(
-                        self.cookies, cookiejar=None, overwrite=True)
+                        self.cookies, cookiejar=None, overwrite=True
+                    )
             else:
-                r = self._session(
-                    'get', 'https://api.bilibili.com/nav')
-            status = True if r['code'] == 0 else False
+                r = self._session("get", "https://api.bilibili.com/nav")
+            status = True if r["code"] == 0 else False
             if status:
-                self.login_platform.add('pc')
+                self.login_platform.add("pc")
             else:
-                self.login_platform.discard('pc')
+                self.login_platform.discard("pc")
         else:
             url = "https://app.bilibili.com/x/v2/account/myinfo"
-            r = self._session('get', url, platform='app')
-            status = True if r['code'] == 0 else False
+            r = self._session("get", url, platform="app")
+            status = True if r["code"] == 0 else False
             if status:
-                self.login_platform.add('app')
+                self.login_platform.add("app")
             else:
-                self.login_platform.discard('app')
+                self.login_platform.discard("app")
         return status
 
     def key2cookie(self):
         params = {
-            'gourl': 'https://account.bilibili.com/account/home',
+            "gourl": "https://account.bilibili.com/account/home",
         }
         r = self._session(
-            'get', 'https://passport.bilibili.com/api/login/sso', level=0, params=params)
+            "get", "https://passport.bilibili.com/api/login/sso", level=0, params=params
+        )
         return requests.utils.dict_from_cookiejar(self.s.cookies)
 
     def renewToken(self):
-        r = self._session(
-            'get', 'https://account.bilibili.com/api/login/renewToken')
-        if r['code'] == 0:
-            str_time = time.strftime(
-                "%Y-%m-%d %H:%M:%S", time.localtime(r['expires']))
+        r = self._session("get", "https://account.bilibili.com/api/login/renewToken")
+        if r["code"] == 0:
+            str_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["expires"]))
             print(f"access_key的有效期已延长至{str_time}")
             return True
         else:
             print(f"access_key的有效期延长失败,{r['message']}")
             return False
 
-    def get_qrcode(self):
-        r = self._session(
-            'get', 'https://passport.bilibili.com/qrcode/getLoginUrl', level=2)
-        code_url = r['url']
-        img = qrcode.make(code_url)
-        self.oauthKey = r['oauthKey']
-        return img
-
-    def get_qrcodeInfo(self):
-        r = self._session('post', 'https://passport.bilibili.com/qrcode/getLoginInfo',
-                          data={'oauthKey': self.oauthKey})
-        while not r['status']:
-            time.sleep(2)
-            r = self._session(
-                'post', 'https://passport.bilibili.com/qrcode/getLoginInfo', data={'oauthKey': self.oauthKey})
-            if r['data'] == -2:
-                print('二维码已过期')
-                break
-            elif r['data'] == -1:
-                print('oauthKey错误')
-                break
-        return r['status']
-
     def login_qrcode(self, path=None):
         # path QR码图片的存储位置
+        def get_qrcode():
+            r = self._session("get", "https://passport.bilibili.com/qrcode/getLoginUrl")
+            if r["status"]:
+                code_url = r["data"]["url"]
+                img = qrcode.make(code_url)
+                self.oauthKey = r["data"]["oauthKey"]
+                return img
+            else:
+                raise Exception(f"请求登录二维码失败：{r}")
+
+        def get_qrcodeInfo():
+            while True:
+                r = self._session(
+                    "post",
+                    "https://passport.bilibili.com/qrcode/getLoginInfo",
+                    data={"oauthKey": self.oauthKey},
+                )
+                if r["status"]:
+                    break
+                elif r["data"] == -2:
+                    raise Exception("二维码已过期")
+                elif r["data"] == -1:
+                    raise Exception("oauthKey错误")
+                time.sleep(2)
+            return r["status"]
+
         if path == None:
             path = os.getcwd()
-        qr = self.get_qrcode()
-        qr.save(os.path.join(path, 'QR.jpg'))
+        qr = get_qrcode()
+        qr.save(os.path.join(path, "QR.jpg"))
         print("请打开图片QR.jpg，用app扫码")
-        info = self.get_qrcodeInfo()
+        info = get_qrcodeInfo()
         if info:
-            self.login_platform.add('pc')
+            self.login_platform.add("pc")
             print("扫码登录成功")
             return True
         else:
             print("扫码登录失败")
             return False
+
+    def login_qrcode_tv(self, path=None):
+        if path == None:
+            path = os.getcwd()
+        r = self._session(
+            "post",
+            "http://passport.bilibili.com/x/passport-tv-login/qrcode/auth_code",
+            platform="app",
+            params={"local_id": "0"},
+        )
+        if r["code"] == 0:
+            code_url = r["data"]["url"]
+            img = qrcode.make(code_url)
+            self.auth_code = r["data"]["auth_code"]
+            img.save(os.path.join(path, "QR.jpg"))
+            print("请打开图片QR.jpg，用app扫码")
+        elif r["code"] == -3:
+            raise Exception("API校验密匙错误")
+        elif r["code"] == -400:
+            raise Exception("请求错误")
+
+        input("app扫码确认完毕后，按任意键继续……")
+        while True:
+            r = self._session(
+                "post",
+                "http://passport.bilibili.com/x/passport-tv-login/qrcode/poll",
+                platform="app",
+                data={"auth_code": self.auth_code, "local_id": "0"},
+            )
+            print(r)
+            if r["code"] == 0:
+                break
+            elif r["code"] == 86038:
+                raise Exception("二维码已过期")
+            elif r["code"] == -3:
+                raise Exception("API校验密匙错误")
+            elif r["code"] == -400:
+                raise Exception("请求错误")
+            time.sleep(2)
+        info = r["data"]
+        params = {"access_key": info["access_token"]}
+        params.update(self.app_params)
+        self.app_params = params.copy()
+        self.login_platform.add("app")
+        print("扫码（tv）登录成功")
+        return True
 
 
 class DownloadThread(threading.Thread):
@@ -203,7 +252,7 @@ class DownloadThread(threading.Thread):
     def download(self, url, path):
         r = requests.get(url, stream=True)
         r.raise_for_status()
-        f = open(path, 'wb')
+        f = open(path, "wb")
         for chunk in r.iter_content(chunk_size=1024):
             if chunk:
                 f.write(chunk)
@@ -213,63 +262,62 @@ class DownloadThread(threading.Thread):
 
 class BiliManga:
     pc_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'zh-CN,zh;q=0.9',
-        'accept-encoding': 'gzip, deflate',
+        "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "accept-encoding": "gzip, deflate",
     }
     app_headers = {
-        'Content-Type': "application/x-www-form-urlencoded; charset=UTF-8",
-        'user-agent': "Mozilla/5.0 BiliComic/3.0.0",
-        'Host': "manga.bilibili.com",
-        'accept-encoding': 'gzip',
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "user-agent": "Mozilla/5.0 BiliComic/3.0.0",
+        "Host": "manga.bilibili.com",
+        "accept-encoding": "gzip",
     }
-    okhttp_headers = {
-        'User-Agent': 'okhttp/3.10.0',
-        'Host': 'manga.hdslb.com'
-    }
+    okhttp_headers = {"User-Agent": "okhttp/3.10.0", "Host": "manga.hdslb.com"}
     app_params = {
-        'device': 'android',
-        'mobi_app': 'android_comic',
-        'platform': 'android',
-        'version': '3.0.0',
-        'buuild': '30000001',
-        'is_teenager': '0',
-        'appkey': 'cc8617fd6961e070',
+        "access_key": "",
+        "device": "android",
+        "mobi_app": "android_comic",
+        "platform": "android",
+        "version": "3.0.0",
+        "buuild": "30000001",
+        "is_teenager": "0",
+        "appkey": "cc8617fd6961e070",
     }
     pc_params = {
-        'device': 'pc',
-        'platform': 'web',
+        "device": "pc",
+        "platform": "web",
     }
     URL_DETAIL = "https://manga.bilibili.com/twirp/comic.v2.Comic/ComicDetail"
     URL_IMAGE_INDEX = "https://manga.bilibili.com/twirp/comic.v1.Comic/GetImageIndex"
     URL_IMAGE_TOKEN = "https://manga.bilibili.com/twirp/comic.v1.Comic/ImageToken"
 
-    def __init__(self, s, comicId, platform='pc', access_key=None):
+    def __init__(self, s, comicId, platform="pc", access_key=None):
         self.s = s
         self.comicId = int(comicId)
         self.platform = platform
         if access_key != None:
-            self.app_params['access_key'] = access_key
+            self.app_params["access_key"] = access_key
 
     def _session(self, method, url, level=2, **kwargs):
-        if not 'headers' in kwargs:
-            kwargs['headers'] = self.pc_headers if self.platform == 'pc' else self.app_headers
-        if self.platform == 'app':
-            if 'data' in kwargs:
-                kwargs['data'].update(self.app_params)
-        elif self.platform == 'pc':
-            if 'params' not in kwargs:
-                kwargs['params'] = self.pc_params
+        if not "headers" in kwargs:
+            kwargs["headers"] = (
+                self.pc_headers if self.platform == "pc" else self.app_headers
+            )
+        if self.platform == "app":
+            if "data" in kwargs:
+                kwargs["data"].update(self.app_params)
+        elif self.platform == "pc":
+            if "params" not in kwargs:
+                kwargs["params"] = self.pc_params
         r = self.s.request(method, url, **kwargs)
-        return r.json()['data'] if level == 2 else r.json() if level == 1 else r.content
+        return r.json()["data"] if level == 2 else r.json() if level == 1 else r.content
 
     def getComicDetail(self, comicId=None):
         if comicId == None:
             comicId = self.comicId
         try:
-            detail = self._session('post', self.URL_DETAIL, data={
-                                   'comic_id': comicId})
+            detail = self._session("post", self.URL_DETAIL, data={"comic_id": comicId})
             self.detail = detail
             return detail
         except Exception as e:
@@ -278,14 +326,17 @@ class BiliManga:
 
     def printList(self, path, ep_list=None, filter=True):
         if ep_list == None:
-            ep_list = self.detail['ep_list']
+            ep_list = self.detail["ep_list"]
         file = os.path.join(path, "漫画详情.txt")
         text = ""
         for ep in ep_list:
             if filter:
                 if ep["is_locked"] and not ep["is_in_free"]:
                     continue
-            text = text+f"ord:{ep['ord']:<3} 章节id：{ep['id']},章节名：{ep['short_title']} {ep['title']}\n"
+            text = (
+                text
+                + f"ord:{ep['ord']:<3} 章节id：{ep['id']},章节名：{ep['short_title']} {ep['title']}\n"
+            )
         with open(file, "w+", encoding="utf-8") as f:
             f.write(text)
 
@@ -293,13 +344,21 @@ class BiliManga:
         content = content[9:]
         if comicId == None:
             comicId = self.comicId
-        key = [ep_id & 0xff, ep_id >> 8 & 0xff, ep_id >> 16 & 0xff, ep_id >> 24 & 0xff,
-               comicId & 0xff, comicId >> 8 & 0xff, comicId >> 16 & 0xff, comicId >> 24 & 0xff]
+        key = [
+            ep_id & 0xFF,
+            ep_id >> 8 & 0xFF,
+            ep_id >> 16 & 0xFF,
+            ep_id >> 24 & 0xFF,
+            comicId & 0xFF,
+            comicId >> 8 & 0xFF,
+            comicId >> 16 & 0xFF,
+            comicId >> 24 & 0xFF,
+        ]
         for i in range(len(content)):
             content[i] ^= key[i % 8]
         file = BytesIO(content)
         zf = zipfile.ZipFile(file)
-        data = json.loads(zf.read('index.dat'))
+        data = json.loads(zf.read("index.dat"))
         zf.close()
         file.close()
         return data
@@ -307,8 +366,7 @@ class BiliManga:
     def getImages(self, ep_id):
         ep_id = int(ep_id)
         c = self.comicId
-        data = self._session('post', self.URL_IMAGE_INDEX,
-                             data={'ep_id': ep_id})
+        data = self._session("post", self.URL_IMAGE_INDEX, data={"ep_id": ep_id})
         pics = ["{}".format(image["path"]) for image in data["images"]]
         # url = data['host'] + data['path'].replace(r"\u003d", "=")
         # content = bytearray(self._session('get', url, level=0,
@@ -318,8 +376,9 @@ class BiliManga:
         return pics
 
     def getImageToken(self, imageUrls):
-        data = self._session('post', self.URL_IMAGE_TOKEN, data={
-                             'urls': json.dumps(imageUrls)})
+        data = self._session(
+            "post", self.URL_IMAGE_TOKEN, data={"urls": json.dumps(imageUrls)}
+        )
         pic_list = []
         for i in data:
             pic_list.append(f"{i['url']}?token={i['token']}")
@@ -328,10 +387,11 @@ class BiliManga:
     def downloadEp(self, ep_data, path, overwrite=True):
         epName = custom_name(ep_data, epName_filter, epName_rule)
         epDir = os.path.join(path, epName)
-        os.makedirs(epDir,exist_ok=True)
-        ep_id = ep_data['id']
+        os.makedirs(epDir, exist_ok=True)
+        ep_id = ep_data["id"]
         pic_list = [
-            "https://manga.hdslb.com{}".format(url) for url in self.getImages(ep_id)]
+            "https://manga.hdslb.com{}".format(url) for url in self.getImages(ep_id)
+        ]
         filetype = pic_list[0].split(".")[-1]
         imageUrls = self.getImageToken(pic_list)
         q = queue.Queue()
@@ -347,10 +407,10 @@ class BiliManga:
 
     def parser_ep_str(self, ep_str):
         chapter_number_list = []
-        last = self.detail['ep_list'][0]['ord']
-        first = self.detail['ep_list'][-1]['ord']
-        offset = 1-first  # 有时ord可能并非从1开始
-        if ep_str == 'all':
+        last = self.detail["ep_list"][0]["ord"]
+        first = self.detail["ep_list"][-1]["ord"]
+        offset = 1 - first  # 有时ord可能并非从1开始
+        if ep_str == "all":
             for number in range(1, last + 1):
                 chapter_number_list.append(number)
         else:
@@ -360,9 +420,9 @@ class BiliManga:
             #     pass
 
             appeared = set()
-            for block in ep_str.split(','):
-                if '-' in block:
-                    start, end = block.split('-', 1)
+            for block in ep_str.split(","):
+                if "-" in block:
+                    start, end = block.split("-", 1)
                     start = max(first, int(start))
                     end = max(start, int(end)) if int(end) <= last else last
                     for number in range(start, end + 1):
@@ -376,24 +436,22 @@ class BiliManga:
                         chapter_number_list.append(number)
         chapter_list = []
         for n in chapter_number_list:
-            ep = self.detail['ep_list'][-n-offset]
+            ep = self.detail["ep_list"][-n - offset]
             if ep["is_locked"] and not ep["is_in_free"]:
                 continue
             chapter_list.append(ep)
         return chapter_list
 
 
-def safe_filename(filename, replace=' '):
-    """文件名过滤非法字符串
-    """
-    filename = filename.rstrip('\t')
+def safe_filename(filename, replace=" "):
+    """文件名过滤非法字符串"""
+    filename = filename.rstrip("\t")
     ILLEGAL_STR = r'\/:*?"<>|'
-    replace_illegal_str = str.maketrans(
-        ILLEGAL_STR, replace * len(ILLEGAL_STR))
+    replace_illegal_str = str.maketrans(ILLEGAL_STR, replace * len(ILLEGAL_STR))
     new_filename = filename.translate(replace_illegal_str).strip()
     if new_filename:
         return new_filename
-    raise Exception('文件名不合法. new_filename={}'.format(new_filename))
+    raise Exception("文件名不合法. new_filename={}".format(new_filename))
 
 
 def custom_name(ep_data, filter=True, name=epName_rule):
@@ -416,96 +474,119 @@ def custom_name(ep_data, filter=True, name=epName_rule):
     return safe_filename(name)
 
 
-def load_config(conf='config.toml'):
+def load_config(conf="config.toml"):
     with open(conf, encoding="utf-8") as f:
         dict_conf = toml.load(f)
     is_ok = True
     if "user" not in dict_conf:
         is_ok = False
-    elif 'access_key' not in dict_conf['user']:
+    elif "access_key" not in dict_conf["user"]:
         is_ok = False
-    elif 'cookies' not in dict_conf['user']:
+    elif "cookies" not in dict_conf["user"]:
         is_ok = False
 
-    if 'comic' not in dict_conf:
+    if "comic" not in dict_conf:
         is_ok = False
-    elif 'comicId' not in dict_conf['comic']:
+    elif "comicId" not in dict_conf["comic"]:
         is_ok = False
-    elif 'ep_str' not in dict_conf['comic']:
+    elif "ep_str" not in dict_conf["comic"]:
         is_ok = False
     if not is_ok:
         print("配置文件缺少内容")
         exit()
-    if 'setting' in dict_conf:
+    if "setting" in dict_conf:
         global max_threads, epName_rule, epName_filter
-        setting = dict_conf['setting']
-        max_threads = setting['max_threads']
-        epName_rule = setting['epName_rule']
-        epName_filter = True if setting['epName_filter'] == "True" else False
+        setting = dict_conf["setting"]
+        max_threads = setting["max_threads"]
+        epName_rule = setting["epName_rule"]
+        epName_filter = True if setting["epName_filter"] == "True" else False
     return dict_conf
 
 
-def cookies2conf(cookies: dict, conf='config.toml'):
+def cookies2conf(cookies: dict, conf="config.toml"):
     cookiesStr = ""
     for k, v in cookies.items():
-        cookiesStr = cookiesStr+f"{k}={v};"
-    with open(conf, 'r', encoding="utf-8") as f:
+        cookiesStr = cookiesStr + f"{k}={v};"
+    with open(conf, "r", encoding="utf-8") as f:
         dict_conf = toml.load(f)
-    dict_conf['user']['cookies'] = cookiesStr
-    with open(conf, 'w', encoding="utf-8") as f:
+    dict_conf["user"]["cookies"] = cookiesStr
+    with open(conf, "w", encoding="utf-8") as f:
+        toml.dump(dict_conf, f)
+
+
+def ak2conf(access_key: str, conf="config.toml"):
+    with open(conf, "r", encoding="utf-8") as f:
+        dict_conf = toml.load(f)
+    dict_conf["user"]["access_key"] = access_key
+    with open(conf, "w", encoding="utf-8") as f:
         toml.dump(dict_conf, f)
 
 
 def main():
     workDir = os.getcwd()
     global config
-    config = os.path.join(workDir, 'config.toml')
+    config = os.path.join(workDir, "config.toml")
     if os.path.exists(config):
         dict_conf = load_config(config)
-        dict_user = dict_conf['user']
-        dict_comic = dict_conf['comic']
+        dict_user = dict_conf["user"]
+        dict_comic = dict_conf["comic"]
     else:
         print("未找到配置文件")
         exit()
 
-    if dict_comic['comicId'] == "":
+    if dict_comic["comicId"] == "":
         comicId = int(input("输入mc号（纯数字）："))
     else:
-        comicId = int(dict_comic['comicId'])
+        comicId = int(dict_comic["comicId"])
 
     s = requests.session()
     bili = Bili(s, dict_user)
 
-    if dict_user['access_key'] != "" and bili.isLogin('app'):
+    if dict_user["access_key"] != "" and bili.isLogin("app"):
         print("成功使用app端登录")
         bili.renewToken()
-        manga = BiliManga(s, comicId, 'app', dict_user['access_key'])
-    elif dict_user['cookies'] != "" and bili.isLogin('pc'):
+        manga = BiliManga(s, comicId, "app", dict_user["access_key"])
+    elif dict_user["cookies"] != "" and bili.isLogin("pc"):
         print("成功使用pc端登录")
         manga = BiliManga(s, comicId)
     else:
-        if not bili.login_qrcode(workDir):
-            ok = True if input("目前未登录，输入任意内容时继续下载，按回车退出:") else False
-            if not ok:
-                exit()
+        choise = input("目前未登录，输入0继续下载，输入1进行扫码登录（网页），输入2进行扫码登录（app）:")
+
+        if choise == "1":
+            if bili.login_qrcode(workDir):
+                cookies = requests.utils.dict_from_cookiejar(s.cookies)
+                cookies2conf(cookies, config)
+                manga = BiliManga(s, comicId)
+            else:
+                choise = "0" if input("扫码登录（网页）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
+        elif choise == "2":
+            if bili.login_qrcode_tv(workDir):
+                access_key = bili.app_params["access_key"]
+                ak2conf(access_key, config)
+                manga = BiliManga(s, comicId, platform="app", access_key=access_key)
+            else:
+                choise = "0" if input("扫码登录（app）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
+        elif choise == "0":
+            manga = BiliManga(s, comicId)
         else:
-            cookies = requests.utils.dict_from_cookiejar(s.cookies)
-            cookies2conf(cookies, config)
-        manga = BiliManga(s, comicId)
+            exit()
 
     manga.getComicDetail()
-    comicName = safe_filename(manga.detail['title'])
+    comicName = safe_filename(manga.detail["title"])
     mangaDir = os.path.join(workDir, comicName)
-    os.makedirs(mangaDir,exist_ok=True)
+    os.makedirs(mangaDir, exist_ok=True)
     manga.printList(mangaDir)
     print(f"已获取漫画《{comicName}》详情，并建立文件夹。")
 
-    if dict_comic['ep_str'] != "":
-        ep_str = dict_comic['ep_str']
+    if dict_comic["ep_str"] != "":
+        ep_str = dict_comic["ep_str"]
     else:
-        print("#"*10+"\n如何输入下载范围：\n输入1-4表示下载ord（序号）1至4的章节\n输入3,5表示下载ord（序号）3、5的章节\n同理，可混合输入1-5,9,55-60")
+        print(
+            "#" * 10
+            + "\n如何输入下载范围：\n输入1-4表示下载ord（序号）1至4的章节\n输入3,5表示下载ord（序号）3、5的章节\n同理，可混合输入1-5,9,55-60"
+        )
         print(f"漫画章节详情见“{comicName}/漫画详情.txt”文件（只列出了目前可下载的章节）")
-        print("ps：请使用英文输入法，按回车键结束输入\n"+"#"*10)
+        print("ps：请使用英文输入法，按回车键结束输入\n" + "#" * 10)
         ep_str = input("请输入下载范围：")
     download_list = manga.parser_ep_str(ep_str)
     print("已获取章节列表")
@@ -514,9 +595,9 @@ def main():
         manga.downloadEp(ep, mangaDir)
         print(f"已下载章节{ep['title']}，章节id：{ep['id']},ord:{ep['ord']}")
 
-    print(f"漫画《{comicName}》下载完毕！\n"+"#"*10)
-    input('按任意键退出')
+    print(f"漫画《{comicName}》下载完毕！\n" + "#" * 10)
+    input("按任意键退出")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

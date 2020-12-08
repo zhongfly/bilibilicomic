@@ -1,12 +1,21 @@
 [user]
+# 用户信息，只填一个或不填并使用程序完成登录
+# access_key可以通过app端抓包获得
+# cookies可以在已登录的B站网页上获得
 access_key = "xxxxxxx"
 cookies = "sid=xxxxx;DedeUserID=xxxxx; DedeUserID__ckMd5=xxxx; SESSDATA=xxx; bili_jct=xxxx"
 
 [comic]
+# comicId为漫画链接中mc后的数字，可不填，在程序中输入也可
+# 例如链接https://manga.bilibili.com/detail/mc26009 中26009即为comicId或者说mc号
+# ep_str输入要下载的章节序号范围（不是第x章），章节与序号对应关系请查看程序运行后生成的漫画详情.txt文件，不懂可以留空
+# 输入1-4表示下载ord（序号）1至4的章节；输入3,5表示下载ord（序号）3、5的章节；同理，可混合输入1-5,9,55-60
+# 注意，应使用英文逗号！
 comicId = "xxxx"
 ep_str = "1-10"
 
 [setting]
+# max_threads 同时下载的文件数，请根据网速斟酌
 max_threads = 10
 epName_rule = "[@ord] @short_title @title"
 epName_filter = "False"

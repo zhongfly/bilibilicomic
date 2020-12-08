@@ -42,12 +42,9 @@ class Bili:
         'Connection': "keep-alive",
     }
     app_params = {
-        'access_key': '',
-        'appkey': '1d8b6e7d45233436',
+        'appkey': '4409e2ce8ffd12b8',
     }
-    appkey = '1d8b6e7d45233436'
-    app_secret = '560c52ccd288fed045859ed18bffd973'
-    access_key = ''
+    app_secret = '59b43e04ad6965f34319062b478f83dd'
     cookies = {}
     login_platform = set()
 
@@ -55,9 +52,11 @@ class Bili:
         # s requests.session()
         # dict_user dict 从配置文件中读取的用户登录信息
         self.s = s
-        if 'access_key' in dict_user:
-            self.access_key = dict_user['access_key']
-            self.app_params['access_key'] = self.access_key
+        if "access_key" in dict_user:
+            # api接口要求access_key在params中排第一
+            params = {"access_key": dict_user["access_key"]}
+            params.update(self.app_params)
+            self.app_params = params.copy()
         if 'cookies' in dict_user:
             cookiesStr = dict_user['cookies']
             if cookiesStr != "":
@@ -69,8 +68,12 @@ class Bili:
 
     def _session(self, method, url, platform='pc', level=1, **kwargs):
         if platform == 'app':
-            if 'params' in kwargs:
-                kwargs['params'].update(self.app_params)
+            # api接口要求在params中access_key排第一,sign排最末。
+            # py3.6及之后dict中item顺序为插入顺序
+            if "params" in kwargs:
+                params = self.app_params.copy()
+                params.update(kwargs["params"])
+                kwargs["params"] = params
             else:
                 kwargs['params'] = self.app_params
             kwargs['params']['ts'] = str(int(time.time()))

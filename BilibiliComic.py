@@ -95,20 +95,20 @@ class Bili:
         if platform == 'pc':
             if self.cookies:
                 r = self._session(
-                    'get', 'http://api.bilibili.com/nav', cookies=self.cookies)
+                    'get', 'https://api.bilibili.com/nav', cookies=self.cookies)
                 if r['code'] == 0:
                     self.s.cookies = requests.utils.cookiejar_from_dict(
                         self.cookies, cookiejar=None, overwrite=True)
             else:
                 r = self._session(
-                    'get', 'https://api.bilibili.com/x/web-interface/nav/stat')
+                    'get', 'https://api.bilibili.com/nav')
             status = True if r['code'] == 0 else False
             if status:
                 self.login_platform.add('pc')
             else:
                 self.login_platform.discard('pc')
         else:
-            url = "https://passport.bilibili.com/api/v2/oauth2/info"
+            url = "https://app.bilibili.com/x/v2/account/myinfo"
             r = self._session('get', url, platform='app')
             status = True if r['code'] == 0 else False
             if status:

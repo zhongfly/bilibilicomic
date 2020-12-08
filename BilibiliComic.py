@@ -54,9 +54,10 @@ class Bili:
         self.s = s
         if "access_key" in dict_user:
             # api接口要求access_key在params中排第一
-            params = {"access_key": dict_user["access_key"]}
-            params.update(self.app_params)
-            self.app_params = params.copy()
+            if dict_user["access_key"] != "":
+                params = {"access_key": dict_user["access_key"]}
+                params.update(self.app_params)
+                self.app_params = params.copy()
         if "cookies" in dict_user:
             cookiesStr = dict_user["cookies"]
             if cookiesStr != "":
@@ -220,6 +221,7 @@ class Bili:
             time.sleep(2)
         info = r["data"]
         params = {"access_key": info["access_token"]}
+        self.app_params.pop("access_key", None)
         params.update(self.app_params)
         self.app_params = params.copy()
         self.login_platform.add("app")

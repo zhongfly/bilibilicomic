@@ -1,0 +1,12 @@
+[user]
+access_key = ""
+cookies = ""
+
+[comic]
+comicId = ""
+ep_str = ""
+
+[setting]
+max_threads = 10
+epName_rule = "[@ord] @short_title @title"
+epName_filter = "False"

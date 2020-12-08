@@ -209,7 +209,6 @@ class Bili:
                 platform="app",
                 data={"auth_code": self.auth_code, "local_id": "0"},
             )
-            print(r)
             if r["code"] == 0:
                 break
             elif r["code"] == 86038:

@@ -79,7 +79,7 @@ class Bili:
             kwargs["params"]["ts"] = str(int(time.time()))
             kwargs["params"]["sign"] = self.calc_sign(kwargs["params"])
         if not "headers" in kwargs:
-            kwargs["headers"] = Bili.pc_headers if platform == "pc" else None
+            kwargs["headers"] = Bili.pc_headers if platform == "pc" else Bili.app_headers
         r = self.s.request(method, url, **kwargs)
         return r.json()["data"] if level == 2 else r.json() if level == 1 else r
 

@@ -1,20 +1,21 @@
 # encoding:UTF-8
 # python3.6
 
-import zipfile
-import json
-import toml
-import os
-import time
-import requests
-from func_timeout import func_set_timeout, FunctionTimedOut
-from tenacity import *
-import threading
-import queue
-import qrcode
 import hashlib
-from urllib.parse import urlencode
+import json
+import os
+import queue
+import threading
+import time
+import zipfile
 from io import BytesIO
+from urllib.parse import urlencode
+
+import qrcode
+import requests
+import toml
+from func_timeout import FunctionTimedOut, func_set_timeout
+from tenacity import *
 
 download_timeout = 60
 max_threads = 10

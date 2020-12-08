@@ -62,6 +62,8 @@ class Bili:
             if cookiesStr != "":
                 cookies = {}
                 for line in cookiesStr.split(";"):
+                    if line == "":
+                        break
                     key, value = line.strip().split("=", 1)
                     cookies[key] = value
                 self.cookies = cookies

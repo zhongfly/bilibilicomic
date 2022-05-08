@@ -91,7 +91,7 @@ class Bili:
         params_list.sort()
         params_str = urlencode(params_list)
         sign_hash = hashlib.md5()
-        sign_hash.update(f"{params_str}{Bili.app_secret}".encode("utf-8"))
+        sign_hash.update(f"{params_str}{Bili.app_secret}".encode())
         return sign_hash.hexdigest()
 
     def isLogin(self, platform="pc"):

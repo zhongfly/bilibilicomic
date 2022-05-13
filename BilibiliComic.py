@@ -20,7 +20,7 @@ from tenacity import *
 download_timeout = 60
 max_threads = 10
 epName_rule = "[@ord] @short_title @title"
-epName_filter = True
+epName_filter = False
 
 
 def find_index(list,key):
@@ -474,7 +474,7 @@ def safe_filename(filename, replace=" "):
     raise Exception("文件名不合法. new_filename={}".format(new_filename))
 
 
-def custom_name(ep_data, filter=True, name=epName_rule):
+def custom_name(ep_data, filter=False, name=epName_rule):
     trans_dict = {
         "@ord": str(ep_data["ord"]),
         "@id": str(ep_data["id"]),

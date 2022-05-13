@@ -17,5 +17,10 @@ ep_str = "1-10"
 [setting]
 # max_threads 同时下载的文件数，请根据网速斟酌
 max_threads = 10
+# 章节文件夹命名格式，可用变量如下：
+# @ord 章节序号
+# @id  章节唯一id
+# @short_title 章节短标题
+# @title 章节完整标题
 epName_rule = "[@ord] @short_title @title"
 epName_filter = "False"

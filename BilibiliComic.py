@@ -23,6 +23,13 @@ epName_rule = "[@ord] @short_title @title"
 epName_filter = True
 
 
+def find_index(list,key):
+    try:
+        index = list.index(key)
+    except ValueError:
+        index = None
+    return index
+
 class Bili:
     pc_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
@@ -84,11 +91,11 @@ class Bili:
         if not "headers" in kwargs:
             kwargs["headers"] = Bili.pc_headers if platform == "pc" else Bili.app_headers
         r = self.s.request(method, url, **kwargs)
-        return r.json()["data"] if level == 2 else r.json() if level == 1 else r
+        return r.json()["data"] if level == 2 else r.json(
+        ) if level == 1 else r
 
     def calc_sign(self, params: dict):
-        params_list = list(params.items())
-        params_list.sort()
+        params_list = sorted(params.items())
         params_str = urlencode(params_list)
         sign_hash = hashlib.md5()
         sign_hash.update(f"{params_str}{Bili.app_secret}".encode())
@@ -131,9 +138,13 @@ class Bili:
         return requests.utils.dict_from_cookiejar(self.s.cookies)
 
     def renewToken(self):
-        r = self._session("get", "https://account.bilibili.com/api/login/renewToken")
+        r = self._session(
+            "get", "https://account.bilibili.com/api/login/renewToken")
         if r["code"] == 0:
-            str_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["expires"]))
+            str_time = time.strftime(
+                "%Y-%m-%d %H:%M:%S",
+                time.localtime(
+                    r["expires"]))
             print(f"access_key的有效期已延长至{str_time}")
             return True
         else:
@@ -143,7 +154,8 @@ class Bili:
     def login_qrcode(self, path=None):
         # path QR码图片的存储位置
         def get_qrcode():
-            r = self._session("get", "https://passport.bilibili.com/qrcode/getLoginUrl")
+            r = self._session(
+                "get", "https://passport.bilibili.com/qrcode/getLoginUrl")
             if r["status"]:
                 code_url = r["data"]["url"]
                 img = qrcode.make(code_url)
@@ -159,6 +171,7 @@ class Bili:
                     "https://passport.bilibili.com/qrcode/getLoginInfo",
                     data={"oauthKey": self.oauthKey},
                 )
+                # print(r)
                 if r["status"]:
                     break
                 elif r["data"] == -2:
@@ -168,7 +181,7 @@ class Bili:
                 time.sleep(2)
             return r["status"]
 
-        if path == None:
+        if path is None:
             path = os.getcwd()
         qr = get_qrcode()
         qr.save(os.path.join(path, "QR.jpg"))
@@ -183,7 +196,7 @@ class Bili:
             return False
 
     def login_qrcode_tv(self, path=None):
-        if path == None:
+        if path is None:
             path = os.getcwd()
         r = self._session(
             "post",
@@ -210,6 +223,7 @@ class Bili:
                 platform="app",
                 data={"auth_code": self.auth_code, "local_id": "0"},
             )
+            # print(r)
             if r["code"] == 0:
                 break
             elif r["code"] == 86038:
@@ -299,7 +313,7 @@ class BiliManga:
         self.s = s
         self.comicId = int(comicId)
         self.platform = platform
-        if access_key != None:
+        if access_key is not None:
             self.app_params["access_key"] = access_key
 
     def _session(self, method, url, level=2, **kwargs):
@@ -314,13 +328,20 @@ class BiliManga:
             if "params" not in kwargs:
                 kwargs["params"] = self.pc_params
         r = self.s.request(method, url, **kwargs)
-        return r.json()["data"] if level == 2 else r.json() if level == 1 else r.content
+        return r.json()["data"] if level == 2 else r.json(
+        ) if level == 1 else r.content
 
     def getComicDetail(self, comicId=None):
-        if comicId == None:
+        if comicId is None:
             comicId = self.comicId
         try:
-            detail = self._session("post", self.URL_DETAIL, data={"comic_id": comicId})
+            detail = self._session(
+                "post", self.URL_DETAIL, data={
+                    "comic_id": comicId})
+            epData = {}
+            for ep in detail['ep_list']:
+                epData[str(ep['ord'])] = ep
+            detail['epData'] = epData
             self.detail = detail
             return detail
         except Exception as e:
@@ -328,7 +349,7 @@ class BiliManga:
             raise e
 
     def printList(self, path, ep_list=None, filter=True):
-        if ep_list == None:
+        if ep_list is None:
             ep_list = self.detail["ep_list"]
         file = os.path.join(path, "漫画详情.txt")
         text = ""
@@ -338,14 +359,14 @@ class BiliManga:
                     continue
             text = (
                 text
-                + f"ord:{ep['ord']:<3} 章节id：{ep['id']},章节名：{ep['short_title']} {ep['title']}\n"
+                + f"ord:{ep['ord']:<6} 章节id：{ep['id']},章节名：{ep['short_title']} {ep['title']}\n"
             )
         with open(file, "w+", encoding="utf-8") as f:
             f.write(text)
 
     def getindex(self, content, ep_id, comicId=None):
         content = content[9:]
-        if comicId == None:
+        if comicId is None:
             comicId = self.comicId
         key = [
             ep_id & 0xFF,
@@ -369,7 +390,9 @@ class BiliManga:
     def getImages(self, ep_id):
         ep_id = int(ep_id)
         c = self.comicId
-        data = self._session("post", self.URL_IMAGE_INDEX, data={"ep_id": ep_id})
+        data = self._session(
+            "post", self.URL_IMAGE_INDEX, data={
+                "ep_id": ep_id})
         pics = ["{}".format(image["path"]) for image in data["images"]]
         # url = data['host'] + data['path'].replace(r"\u003d", "=")
         # content = bytearray(self._session('get', url, level=0,
@@ -409,48 +432,42 @@ class BiliManga:
         q.join()
 
     def parser_ep_str(self, ep_str):
-        chapter_number_list = []
-        last = self.detail["ep_list"][0]["ord"]
-        first = self.detail["ep_list"][-1]["ord"]
-        offset = 1 - first  # 有时ord可能并非从1开始
+        epData = self.detail["epData"]
         if ep_str == "all":
-            for number in range(1, last + 1):
-                chapter_number_list.append(number)
+            return list(epData.values())
         else:
-            # try:
-            #     chapter_number = max(1,int(ep_str))
-            # except ValueError:
-            #     pass
-
+            ords = list(epData.keys())
+            ords.sort(key=lambda x:float(x))
             appeared = set()
+            chapter_list = []
             for block in ep_str.split(","):
                 if "-" in block:
                     start, end = block.split("-", 1)
-                    start = max(first, int(start))
-                    end = max(start, int(end)) if int(end) <= last else last
-                    for number in range(start, end + 1):
-                        if number not in appeared:
-                            appeared.add(number)
-                            chapter_number_list.append(number)
+                    start = start if float(start) > 1 else "1"
+                    end = end if float(end) < float(ords[-1]) else ords[-1]
+                    ep_range = lambda elem: float(elem)<=float(end) and float(elem)>=float(start)
+                    for ord in filter(ep_range,ords):
+                        if ord not in appeared:
+                            appeared.add(ord)
                 else:
-                    number = int(block)
-                    if number not in appeared:
-                        appeared.add(number)
-                        chapter_number_list.append(number)
-        chapter_list = []
-        for n in chapter_number_list:
-            ep = self.detail["ep_list"][-n - offset]
-            if ep["is_locked"] and not ep["is_in_free"]:
-                continue
-            chapter_list.append(ep)
-        return chapter_list
+                    ord = block
+                    if ord not in appeared and epData.get(ord):
+                        appeared.add(ord)
+
+            for ord in appeared:
+                ep = epData[ord]
+                if ep["is_locked"] and not ep["is_in_free"]:
+                    continue
+                chapter_list.append(epData[ord])
+            return chapter_list
 
 
 def safe_filename(filename, replace=" "):
     """文件名过滤非法字符串"""
     filename = filename.rstrip("\t")
     ILLEGAL_STR = r'\/:*?"<>|'
-    replace_illegal_str = str.maketrans(ILLEGAL_STR, replace * len(ILLEGAL_STR))
+    replace_illegal_str = str.maketrans(
+        ILLEGAL_STR, replace * len(ILLEGAL_STR))
     new_filename = filename.translate(replace_illegal_str).strip()
     if new_filename:
         return new_filename
@@ -561,14 +578,17 @@ def main():
                 cookies2conf(cookies, config)
                 manga = BiliManga(s, comicId)
             else:
-                choise = "0" if input("扫码登录（网页）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
+                choise = "0" if input(
+                    "扫码登录（网页）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
         elif choise == "2":
             if bili.login_qrcode_tv(workDir):
                 access_key = bili.app_params["access_key"]
                 ak2conf(access_key, config)
-                manga = BiliManga(s, comicId, platform="app", access_key=access_key)
+                manga = BiliManga(
+                    s, comicId, platform="app", access_key=access_key)
             else:
-                choise = "0" if input("扫码登录（app）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
+                choise = "0" if input(
+                    "扫码登录（app）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
         elif choise == "0":
             manga = BiliManga(s, comicId)
         else:

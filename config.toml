@@ -10,3 +10,5 @@ ep_str = ""
 max_threads = 10
 epName_rule = "[@ord] @short_title @title"
 epName_filter = "False"
+bonusName_rule = "[@id] @title @detail"
+bonusName_filter = "False"

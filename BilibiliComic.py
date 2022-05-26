@@ -21,14 +21,17 @@ download_timeout = 60
 max_threads = 10
 epName_rule = "[@ord] @short_title @title"
 epName_filter = False
+bonusName_rule = "[@id] @title @detail"
+bonusName_filter = False
 
 
-def find_index(list,key):
+def find_index(list, key):
     try:
         index = list.index(key)
     except ValueError:
         index = None
     return index
+
 
 class Bili:
     pc_headers = {
@@ -89,10 +92,11 @@ class Bili:
             kwargs["params"]["ts"] = str(int(time.time()))
             kwargs["params"]["sign"] = self.calc_sign(kwargs["params"])
         if not "headers" in kwargs:
-            kwargs["headers"] = Bili.pc_headers if platform == "pc" else Bili.app_headers
+            kwargs["headers"] = (
+                Bili.pc_headers if platform == "pc" else Bili.app_headers
+            )
         r = self.s.request(method, url, **kwargs)
-        return r.json()["data"] if level == 2 else r.json(
-        ) if level == 1 else r
+        return r.json()["data"] if level == 2 else r.json() if level == 1 else r
 
     def calc_sign(self, params: dict):
         params_list = sorted(params.items())
@@ -138,13 +142,9 @@ class Bili:
         return requests.utils.dict_from_cookiejar(self.s.cookies)
 
     def renewToken(self):
-        r = self._session(
-            "get", "https://account.bilibili.com/api/login/renewToken")
+        r = self._session("get", "https://account.bilibili.com/api/login/renewToken")
         if r["code"] == 0:
-            str_time = time.strftime(
-                "%Y-%m-%d %H:%M:%S",
-                time.localtime(
-                    r["expires"]))
+            str_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["expires"]))
             print(f"access_key的有效期已延长至{str_time}")
             return True
         else:
@@ -154,8 +154,7 @@ class Bili:
     def login_qrcode(self, path=None):
         # path QR码图片的存储位置
         def get_qrcode():
-            r = self._session(
-                "get", "https://passport.bilibili.com/qrcode/getLoginUrl")
+            r = self._session("get", "https://passport.bilibili.com/qrcode/getLoginUrl")
             if r["status"]:
                 code_url = r["data"]["url"]
                 img = qrcode.make(code_url)
@@ -278,6 +277,8 @@ class DownloadThread(threading.Thread):
 
 
 class BiliManga:
+    comicId = None
+    platform = "pc"
     pc_headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
@@ -308,6 +309,7 @@ class BiliManga:
     URL_DETAIL = "https://manga.bilibili.com/twirp/comic.v2.Comic/ComicDetail"
     URL_IMAGE_INDEX = "https://manga.bilibili.com/twirp/comic.v1.Comic/GetImageIndex"
     URL_IMAGE_TOKEN = "https://manga.bilibili.com/twirp/comic.v1.Comic/ImageToken"
+    URL_BONUS = "https://manga.bilibili.com/twirp/comic.v1.Comic/GetComicAlbumPlus"
 
     def __init__(self, s, comicId, platform="pc", access_key=None):
         self.s = s
@@ -328,39 +330,69 @@ class BiliManga:
             if "params" not in kwargs:
                 kwargs["params"] = self.pc_params
         r = self.s.request(method, url, **kwargs)
-        return r.json()["data"] if level == 2 else r.json(
-        ) if level == 1 else r.content
+        return r.json()["data"] if level == 2 else r.json() if level == 1 else r.content
 
     def getComicDetail(self, comicId=None):
         if comicId is None:
             comicId = self.comicId
         try:
-            detail = self._session(
-                "post", self.URL_DETAIL, data={
-                    "comic_id": comicId})
+            detail = self._session("post", self.URL_DETAIL, data={"comic_id": comicId})
             epData = {}
-            for ep in detail['ep_list']:
-                epData[str(ep['ord'])] = ep
-            detail['epData'] = epData
+            for ep in detail["ep_list"]:
+                epData[str(ep["ord"])] = ep
+            detail["epData"] = epData
             self.detail = detail
             return detail
         except Exception as e:
             print(f"getComicDetail fail,id={comicId},{e}")
             raise e
 
-    def printList(self, path, ep_list=None, filter=True):
-        if ep_list is None:
-            ep_list = self.detail["ep_list"]
-        file = os.path.join(path, "漫画详情.txt")
+    def getBonusData(self, comicId=None):
+        if comicId is None:
+            comicId = self.comicId
+        try:
+            detail = self._session("post", self.URL_BONUS, data={"comic_id": comicId})
+            epData = {}
+            for ep in detail["list"]:
+                bonus_item = ep["item"]
+                bonus_item["is_locked"] = ep["isLock"]
+                epData[str(bonus_item["id"])] = bonus_item
+            self.BonusData = epData
+            return epData
+        except Exception as e:
+            print(f"getBonus fail,id={comicId},{e}")
+            raise e
+
+    def printList(self, path, ep_list=None, filter=True, isBonus=False):
+        if isBonus:
+            if BonusList is None:
+                BonusList = list(self.BonusData.values())
+            filename = "漫画详情（特典）.txt"
+        else:
+            if ep_list is None:
+                ep_list = self.detail["ep_list"]
+            filename = "漫画详情.txt"
+        file = os.path.join(path, filename)
         text = ""
         for ep in ep_list:
             if filter:
-                if ep["is_locked"] and not ep["is_in_free"]:
+                if (
+                    not isBonus
+                    and ep.get("is_locked", False)
+                    and not ep.get("is_in_free", True)
+                ):
                     continue
-            text = (
-                text
-                + f"ord:{ep['ord']:<6} 章节id：{ep['id']},章节名：{ep['short_title']} {ep['title']}\n"
-            )
+                elif isBonus and ep.get("is_locked", False):
+                    continue
+            if not isBonus:
+                text = (
+                    text
+                    + f"ord:{ep['ord']:<6} 章节id：{ep['id']},章节名：{ep['short_title']} {ep['title']}\n"
+                )
+            else:
+                text = text + f"id：{ep['id']:<6} 特典标题：{ep['title']} 详情：{ep['detail']}\n"
+        if text == "":
+            text = "不存在可以下载的章节"
         with open(file, "w+", encoding="utf-8") as f:
             f.write(text)
 
@@ -390,9 +422,7 @@ class BiliManga:
     def getImages(self, ep_id):
         ep_id = int(ep_id)
         c = self.comicId
-        data = self._session(
-            "post", self.URL_IMAGE_INDEX, data={
-                "ep_id": ep_id})
+        data = self._session("post", self.URL_IMAGE_INDEX, data={"ep_id": ep_id})
         pics = ["{}".format(image["path"]) for image in data["images"]]
         # url = data['host'] + data['path'].replace(r"\u003d", "=")
         # content = bytearray(self._session('get', url, level=0,
@@ -410,16 +440,28 @@ class BiliManga:
             pic_list.append(f"{i['url']}?token={i['token']}")
         return pic_list
 
-    def downloadEp(self, ep_data, path, overwrite=True):
-        epName = custom_name(ep_data, epName_filter, epName_rule)
+    def downloadEp(self, ep_data, path, overwrite=True, isBonus=False):
+        if isBonus:
+            if ep_data.get("is_locked", False):
+                return
+            epName = self.custom_name(ep_data, bonusName_filter, bonusName_rule)
+            epDir = os.path.join(path, epName)
+            os.makedirs(epDir, exist_ok=True)
+            imageUrls = ep_data["pic"]
+            filetype = imageUrls[0].split(".")[-1].split("?")[0]
+        else:
+            if ep_data.get("is_locked", False) and not ep_data.get("is_in_free", True):
+                return
+            epName = self.custom_name(ep_data, epName_filter, epName_rule)
+            ep_id = ep_data["id"]
+            pic_list = [
+                "https://manga.hdslb.com{}".format(url) for url in self.getImages(ep_id)
+            ]
+            filetype = pic_list[0].split(".")[-1]
+            imageUrls = self.getImageToken(pic_list)
+
         epDir = os.path.join(path, epName)
         os.makedirs(epDir, exist_ok=True)
-        ep_id = ep_data["id"]
-        pic_list = [
-            "https://manga.hdslb.com{}".format(url) for url in self.getImages(ep_id)
-        ]
-        filetype = pic_list[0].split(".")[-1]
-        imageUrls = self.getImageToken(pic_list)
         q = queue.Queue()
         for n, url in enumerate(imageUrls, 1):
             imgPath = os.path.join(epDir, f"{n}.{filetype}")
@@ -431,67 +473,77 @@ class BiliManga:
             t.start()
         q.join()
 
-    def parser_ep_str(self, ep_str):
-        epData = self.detail["epData"]
-        if ep_str == "all":
-            return list(epData.values())
+    def parser_ep_str(self, ep_str, isBonus=False):
+        if isBonus:
+            epData = self.BonusData
         else:
-            ords = list(epData.keys())
-            ords.sort(key=lambda x:float(x))
+            epData = self.detail["epData"]
+        chapter_list = []
+        if ep_str == "all":
+            appeared = set(epData.keys())
+        else:
+            keys = list(epData.keys())
+            keys.sort(key=lambda x: float(x))
             appeared = set()
-            chapter_list = []
             for block in ep_str.split(","):
                 if "-" in block:
                     start, end = block.split("-", 1)
-                    start = start if float(start) > 1 else "1"
-                    end = end if float(end) < float(ords[-1]) else ords[-1]
-                    ep_range = lambda elem: float(elem)<=float(end) and float(elem)>=float(start)
-                    for ord in filter(ep_range,ords):
-                        if ord not in appeared:
-                            appeared.add(ord)
+                    start = start if float(start) > float(keys[0]) else keys[0]
+                    end = end if float(end) < float(keys[-1]) else keys[-1]
+                    ep_range = lambda elem: float(elem) <= float(end) and float(
+                        elem
+                    ) >= float(start)
+                    for key in filter(ep_range, keys):
+                        if key not in appeared:
+                            appeared.add(key)
                 else:
-                    ord = block
-                    if ord not in appeared and epData.get(ord):
-                        appeared.add(ord)
+                    key = block
+                    if key not in appeared and epData.get(key):
+                        appeared.add(key)
 
-            for ord in appeared:
-                ep = epData[ord]
-                if ep["is_locked"] and not ep["is_in_free"]:
-                    continue
-                chapter_list.append(epData[ord])
-            return chapter_list
+        for key in appeared:
+            ep = epData[key]
+            if (
+                not isBonus
+                and ep.get("is_locked", False)
+                and not ep.get("is_in_free", True)
+            ):
+                continue
+            elif isBonus and ep.get("is_locked", False):
+                continue
+            chapter_list.append(epData[key])
+        return chapter_list
+
+    def custom_name(self, ep_data, filter=False, name=epName_rule):
+        trans_dict = {
+            "@ord": str(ep_data.get("ord", "")),
+            "@id": str(ep_data.get("id", "")),
+            "@short_title": ep_data.get("short_title", ""),
+            "@title": ep_data.get("title", ""),
+            "@detail": ep_data.get("detail", ""),
+        }
+        # 重复的变量会被忽略，避免名称中重复出现几个词
+        if filter:
+            appeared = set()
+            for k, v in trans_dict.items():
+                if v in appeared:
+                    trans_dict[k] = ""
+                else:
+                    appeared.add(v)
+        for k, v in trans_dict.items():
+            name = name.replace(k, v)
+        return safe_filename(name)
 
 
 def safe_filename(filename, replace=" "):
     """文件名过滤非法字符串"""
     filename = filename.rstrip("\t")
     ILLEGAL_STR = r'\/:*?"<>|'
-    replace_illegal_str = str.maketrans(
-        ILLEGAL_STR, replace * len(ILLEGAL_STR))
+    replace_illegal_str = str.maketrans(ILLEGAL_STR, replace * len(ILLEGAL_STR))
     new_filename = filename.translate(replace_illegal_str).strip()
     if new_filename:
         return new_filename
     raise Exception("文件名不合法. new_filename={}".format(new_filename))
-
-
-def custom_name(ep_data, filter=False, name=epName_rule):
-    trans_dict = {
-        "@ord": str(ep_data["ord"]),
-        "@id": str(ep_data["id"]),
-        "@short_title": ep_data["short_title"],
-        "@title": ep_data["title"],
-        "@pub_time": ep_data["pub_time"],
-    }
-    if filter:
-        appeared = set()
-        for k, v in trans_dict.items():
-            if v in appeared:
-                trans_dict[k] = ""
-            else:
-                appeared.add(v)
-    for k, v in trans_dict.items():
-        name = name.replace(k, v)
-    return safe_filename(name)
 
 
 def load_config(conf="config.toml"):
@@ -515,11 +567,19 @@ def load_config(conf="config.toml"):
         print("配置文件缺少内容")
         exit()
     if "setting" in dict_conf:
-        global max_threads, epName_rule, epName_filter
+        global max_threads, epName_rule, epName_filter, bonusName_rule, bonusName_filter
         setting = dict_conf["setting"]
-        max_threads = setting["max_threads"]
-        epName_rule = setting["epName_rule"]
-        epName_filter = True if setting["epName_filter"] == "True" else False
+        max_threads = setting.get("max_threads", max_threads)
+        epName_rule = setting.get("epName_rule", epName_rule)
+        epName_filter = (
+            True if setting.get("epName_filter", epName_filter) == "True" else False
+        )
+        bonusName_rule = setting.get("bonusName_rule", bonusName_rule)
+        bonusName_filter = (
+            True
+            if setting.get("bonusName_filter", bonusName_filter) == "True"
+            else False
+        )
     return dict_conf
 
 
@@ -578,17 +638,14 @@ def main():
                 cookies2conf(cookies, config)
                 manga = BiliManga(s, comicId)
             else:
-                choise = "0" if input(
-                    "扫码登录（网页）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
+                choise = "0" if input("扫码登录（网页）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
         elif choise == "2":
             if bili.login_qrcode_tv(workDir):
                 access_key = bili.app_params["access_key"]
                 ak2conf(access_key, config)
-                manga = BiliManga(
-                    s, comicId, platform="app", access_key=access_key)
+                manga = BiliManga(s, comicId, platform="app", access_key=access_key)
             else:
-                choise = "0" if input(
-                    "扫码登录（app）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
+                choise = "0" if input("扫码登录（app）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
         elif choise == "0":
             manga = BiliManga(s, comicId)
         else:
@@ -598,28 +655,52 @@ def main():
     comicName = safe_filename(manga.detail["title"])
     mangaDir = os.path.join(workDir, comicName)
     os.makedirs(mangaDir, exist_ok=True)
-    manga.printList(mangaDir)
     print(f"已获取漫画《{comicName}》详情，并建立文件夹。")
+    while True:
+        if manga.platform == "app" and manga.detail.get("album_count", 0) > 0:
+            choice = input("下载漫画章节输入y，下载特典输入n：（y/n）")
+            download_mode = "normal" if choice.lower() == "y" else "bonus"
+        else:
+            download_mode = "normal"
 
-    if dict_comic["ep_str"] != "":
-        ep_str = dict_comic["ep_str"]
-    else:
-        print(
-            "#" * 10
-            + "\n如何输入下载范围：\n输入1-4表示下载ord（序号）1至4的章节\n输入3,5表示下载ord（序号）3、5的章节\n同理，可混合输入1-5,9,55-60"
-        )
-        print(f"漫画章节详情见“{comicName}/漫画详情.txt”文件（只列出了目前可下载的章节）")
-        print("ps：请使用英文输入法，按回车键结束输入\n" + "#" * 10)
-        ep_str = input("请输入下载范围：")
-    download_list = manga.parser_ep_str(ep_str)
-    print("已获取章节列表")
+        if download_mode == "normal":
+            manga.printList(mangaDir)
+            if dict_comic["ep_str"] != "":
+                ep_str = dict_comic["ep_str"]
+            else:
+                print(
+                    "#" * 10
+                    + "\n如何输入下载范围：\n输入1-4表示下载ord（序号）1至4的章节\n输入3,5表示下载ord（序号）3、5的章节\n同理，可混合输入1-5,9,55-60"
+                )
+                print(f"漫画章节详情见“{comicName}/漫画详情.txt”文件（只列出了目前可下载的章节）")
+                print("ps：请使用英文输入法，按回车键结束输入\n" + "#" * 10)
+                ep_str = input("请输入下载范围：")
+            download_list = manga.parser_ep_str(ep_str)
+            print("已获取章节列表")
 
-    for ep in download_list:
-        manga.downloadEp(ep, mangaDir)
-        print(f"已下载章节{ep['title']}，章节id：{ep['id']},ord:{ep['ord']}")
+            for ep in download_list:
+                manga.downloadEp(ep, mangaDir)
+                print(f"已下载章节“{ep['title']}”，章节id：{ep['id']},ord:{ep['ord']}")
+        elif download_mode == "bonus":
+            manga.getBonusData()
+            manga.printList(mangaDir,isBonus=True)
+            print(
+                "#" * 10
+                + "\n如何输入下载范围：\n输入1-4表示下载id（序号）1至4的章节\n输入3,5表示下载id（序号）3、5的章节\n同理，可混合输入1-5,9,55-60"
+            )
+            print(f"漫画特典详情见“{comicName}/漫画详情(特典).txt”文件（只列出了目前可下载的特典）")
+            print("ps：请使用英文输入法，按回车键结束输入\n" + "#" * 10)
+            ep_str = input("请输入下载范围：")
+            download_list = manga.parser_ep_str(ep_str, isBonus=True)
+            print("已获取章节列表")
 
-    print(f"漫画《{comicName}》下载完毕！\n" + "#" * 10)
-    input("按任意键退出")
+            for ep in download_list:
+                manga.downloadEp(ep, mangaDir, isBonus=True)
+                print(f"已下载特典“{ep['title']}{ep['detail']}”，章节id：{ep['id']}")
+
+        print(f"漫画《{comicName}》的下载任务已完成！\n" + "#" * 10)
+        if input("按任意键继续，输入y退出").lower() == "y":
+            break
 
 
 if __name__ == "__main__":

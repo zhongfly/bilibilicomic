@@ -479,7 +479,7 @@ class BiliManga:
         else:
             epData = self.detail["epData"]
         chapter_list = []
-        if ep_str == "all":
+        if ep_str.lower() == "all":
             appeared = set(epData.keys())
         else:
             keys = list(epData.keys())
@@ -512,6 +512,7 @@ class BiliManga:
             elif isBonus and ep.get("is_locked", False):
                 continue
             chapter_list.append(epData[key])
+       chapter_list.sort(key=lambda x:float(x['ord']))
         return chapter_list
 
     def custom_name(self, ep_data, filter=False, name=epName_rule):
@@ -671,6 +672,7 @@ def main():
                 print(
                     "#" * 10
                     + "\n如何输入下载范围：\n输入1-4表示下载ord（序号）1至4的章节\n输入3,5表示下载ord（序号）3、5的章节\n同理，可混合输入1-5,9,55-60"
+                    + "\n输入“all”可以下载所有章节"
                 )
                 print(f"漫画章节详情见“{comicName}/漫画详情.txt”文件（只列出了目前可下载的章节）")
                 print("ps：请使用英文输入法，按回车键结束输入\n" + "#" * 10)

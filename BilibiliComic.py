@@ -365,8 +365,8 @@ class BiliManga:
 
     def printList(self, path, ep_list=None, filter=True, isBonus=False):
         if isBonus:
-            if BonusList is None:
-                BonusList = list(self.BonusData.values())
+            if ep_list is None:
+                ep_list = list(self.BonusData.values())
             filename = "漫画详情（特典）.txt"
         else:
             if ep_list is None:
@@ -512,7 +512,7 @@ class BiliManga:
             elif isBonus and ep.get("is_locked", False):
                 continue
             chapter_list.append(epData[key])
-       chapter_list.sort(key=lambda x:float(x['ord']))
+        chapter_list.sort(key=lambda x:float(x['ord']))
         return chapter_list
 
     def custom_name(self, ep_data, filter=False, name=epName_rule):

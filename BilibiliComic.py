@@ -476,8 +476,10 @@ class BiliManga:
     def parser_ep_str(self, ep_str, isBonus=False):
         if isBonus:
             epData = self.BonusData
+            sortKey = "id"
         else:
             epData = self.detail["epData"]
+            sortKey = "ord"
         chapter_list = []
         if ep_str.lower() == "all":
             appeared = set(epData.keys())
@@ -512,7 +514,7 @@ class BiliManga:
             elif isBonus and ep.get("is_locked", False):
                 continue
             chapter_list.append(epData[key])
-        chapter_list.sort(key=lambda x:float(x['ord']))
+        chapter_list.sort(key=lambda x:float(x[sortKey]))
         return chapter_list
 
     def custom_name(self, ep_data, filter=False, name=epName_rule):

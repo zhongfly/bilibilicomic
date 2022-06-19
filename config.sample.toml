@@ -10,6 +10,7 @@ cookies = "sid=xxxxx;DedeUserID=xxxxx; DedeUserID__ckMd5=xxxx; SESSDATA=xxx; bil
 # 例如链接https://manga.bilibili.com/detail/mc26009 中26009即为comicId或者说mc号
 # ep_str输入要下载的章节序号范围（不是第x章），章节与序号对应关系请查看程序运行后生成的漫画详情.txt文件，不懂可以留空
 # 输入1-4表示下载ord（序号）1至4的章节；输入3,5表示下载ord（序号）3、5的章节；同理，可混合输入1-5,9,55-60
+# 如果填入“all”，则表示下载全部
 # 注意，应使用英文逗号！
 comicId = "xxxx"
 ep_str = "1-10"

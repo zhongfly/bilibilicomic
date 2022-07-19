@@ -9,7 +9,7 @@ import threading
 import time
 import zipfile
 from io import BytesIO
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse, parse_qs
 
 import qrcode
 import requests
@@ -55,6 +55,12 @@ class Bili:
         "appkey": "4409e2ce8ffd12b8",
     }
     app_secret = "59b43e04ad6965f34319062b478f83dd"
+    URL_TEST_PC_LOGIN = "https://api.bilibili.com/nav"
+    URL_TEST_APP_LOGIN = "https://app.bilibili.com/x/v2/account/myinfo"
+    URL_RENEW_KEY = "https://account.bilibili.com/api/login/renewToken"
+    URL_KEY_TO_COOKIE = "https://passport.bilibili.com/api/login/sso"
+    URL_COOKIE_TO_KEY = "https://passport.bilibili.com/login/app/third?appkey=27eb53fc9058f8c3&api=http://link.acg.tv/forum.php&sign=67ec798004373253d60114caaad89a8c"
+
     cookies = {}
     login_platform = set()
 
@@ -108,23 +114,20 @@ class Bili:
     def isLogin(self, platform="pc"):
         if platform == "pc":
             if self.cookies:
-                r = self._session(
-                    "get", "https://api.bilibili.com/nav", cookies=self.cookies
-                )
+                r = self._session("get", self.URL_TEST_PC_LOGIN, cookies=self.cookies)
                 if r["code"] == 0:
                     self.s.cookies = requests.utils.cookiejar_from_dict(
                         self.cookies, cookiejar=None, overwrite=True
                     )
             else:
-                r = self._session("get", "https://api.bilibili.com/nav")
+                r = self._session("get", self.URL_TEST_PC_LOGIN)
             status = True if r["code"] == 0 else False
             if status:
                 self.login_platform.add("pc")
             else:
                 self.login_platform.discard("pc")
         else:
-            url = "https://app.bilibili.com/x/v2/account/myinfo"
-            r = self._session("get", url, platform="app")
+            r = self._session("get", self.URL_TEST_APP_LOGIN, platform="app")
             status = True if r["code"] == 0 else False
             if status:
                 self.login_platform.add("app")
@@ -136,13 +139,24 @@ class Bili:
         params = {
             "gourl": "https://account.bilibili.com/account/home",
         }
-        r = self._session(
-            "get", "https://passport.bilibili.com/api/login/sso", level=0, params=params
-        )
+        r = self._session("get", self.URL_KEY_TO_COOKIE, level=0, params=params)
         return requests.utils.dict_from_cookiejar(self.s.cookies)
 
+    def cookie2key(self):
+        r = self._session("get", self.URL_COOKIE_TO_KEY, platform="pc")
+        if r["status"]:
+            confirm_uri = r["data"]["confirm_uri"]
+            r = self._session(
+                "get", confirm_uri, platform="pc", level=0, allow_redirects=False
+            )
+            redirect_url = r.headers.get("Location")
+            access_key = parse_qs(urlparse(redirect_url).query)["access_key"][0]
+            return access_key
+        else:
+            raise Exception(f"由cookies获取access_key失败：{r}")
+
     def renewToken(self):
-        r = self._session("get", "https://account.bilibili.com/api/login/renewToken")
+        r = self._session("get", self.URL_RENEW_KEY)
         if r["code"] == 0:
             str_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r["expires"]))
             print(f"access_key的有效期已延长至{str_time}")
@@ -514,7 +528,7 @@ class BiliManga:
             elif isBonus and ep.get("is_locked", False):
                 continue
             chapter_list.append(epData[key])
-        chapter_list.sort(key=lambda x:float(x[sortKey]))
+        chapter_list.sort(key=lambda x: float(x[sortKey]))
         return chapter_list
 
     def custom_name(self, ep_data, filter=False, name=epName_rule):
@@ -627,11 +641,15 @@ def main():
 
     if dict_user["access_key"] != "" and bili.isLogin("app"):
         print("成功使用app端登录")
-        bili.renewToken()
         manga = BiliManga(s, comicId, "app", dict_user["access_key"])
     elif dict_user["cookies"] != "" and bili.isLogin("pc"):
         print("成功使用pc端登录")
-        manga = BiliManga(s, comicId)
+        # manga = BiliManga(s, comicId)
+        access_key = bili.cookie2key()
+        dict_user["access_key"] = access_key
+        ak2conf(access_key, config)
+        manga = BiliManga(s, comicId, platform="app", access_key=access_key)
+
     else:
         choise = input("目前未登录，输入0继续下载，输入1进行扫码登录（网页），输入2进行扫码登录（app）:")
 
@@ -639,7 +657,11 @@ def main():
             if bili.login_qrcode(workDir):
                 cookies = requests.utils.dict_from_cookiejar(s.cookies)
                 cookies2conf(cookies, config)
-                manga = BiliManga(s, comicId)
+                # manga = BiliManga(s, comicId)
+                access_key = bili.cookie2key()
+                dict_user["access_key"] = access_key
+                ak2conf(access_key, config)
+                manga = BiliManga(s, comicId, platform="app", access_key=access_key)
             else:
                 choise = "0" if input("扫码登录（网页）失败，按回车退出，按其他键以未登录身份下载:") else "-1"
         elif choise == "2":
@@ -687,7 +709,7 @@ def main():
                 print(f"已下载章节“{ep['title']}”，章节id：{ep['id']},ord:{ep['ord']}")
         elif download_mode == "bonus":
             manga.getBonusData()
-            manga.printList(mangaDir,isBonus=True)
+            manga.printList(mangaDir, isBonus=True)
             print(
                 "#" * 10
                 + "\n如何输入下载范围：\n输入1-4表示下载id（序号）1至4的章节\n输入3,5表示下载id（序号）3、5的章节\n同理，可混合输入1-5,9,55-60"

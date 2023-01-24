@@ -1,5 +1,6 @@
 requests
 qrcode
+pillow
 func_timeout
 tenacity
 toml
